@@ -18,7 +18,7 @@
 using namespace std;
 
 // Core loop functions
-void	initialize();
+void	initialize(const std::string& folder);
 void	display();
 
 // Global gameplay functions
@@ -84,9 +84,13 @@ int main()
 	bool playing = true;
 	string input;
 
-	initialize();
+	// print the introduction
+	cout << "Welcome! Please indicate which adventure folder you would like to load...\n";
+	getline(cin, input);
+	initialize(input);
 
 	// print the introduction
+	system("cls");
 	cout << introduction;
 	cin.get();
 
@@ -190,15 +194,15 @@ void parseEvents(const string& url) {
 	}
 }
 
-void initialize() {
+void initialize( const std::string& folder ) {
 	LoadStringsFromIni("english.ini");
 
 	// TODO: maybe ask for a folder to open, so that a player can play different adventures?
 	//			or a main menu in which you can load a specific adventure game, load/save game, etc.
 
-	parseObjects("Lighthouse/objects.ini");
-	parseMap("Lighthouse/map.ini");
-	parseEvents("Lighthouse/events.ini");
+	parseObjects(folder + "/objects.ini");
+	parseMap(folder + "/map.ini");
+	parseEvents(folder + "/events.ini");
 
 	directionOffset = std::map<string, int>
 	{

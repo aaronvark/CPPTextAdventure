@@ -1,5 +1,7 @@
 #pragma once
 
+#include <map>
+
 #include "Strings.hpp"
 
 enum ActionType
@@ -21,15 +23,15 @@ enum ActionType
 class Action {
 public:
 	static inline std::map<std::string, ActionType> actionTypeFromString = std::map<std::string, ActionType>{
-		{ Strings.EXIT, AT_ADD_DIRECTION },
-		{ Strings.OUTPUT, AT_OUTPUT},
-		{ Strings.EDIT_OBJECT, AT_EDIT_OBJECT},
-		{ Strings.EVENT, AT_EVENT},
-		{ Strings.EDIT_INVENTORY, AT_EDIT_INVENTORY},
-		{ Strings.PLACE, AT_PLACE},
-		{ Strings.INVENTORY_CONTAINS, AT_INVENTORY_CONTAINS },
-		{ Strings.EDIT_LOCATION, AT_EDIT_LOCATION },
-		{ Strings.DESTROY_OBJECT, AT_DESTROY_OBJECT }
+	   { Strings.EXIT, AT_ADD_DIRECTION },
+	   { Strings.OUTPUT, AT_OUTPUT},
+	   { Strings.EDIT_OBJECT, AT_EDIT_OBJECT},
+	   { Strings.EVENT, AT_EVENT},
+	   { Strings.EDIT_INVENTORY, AT_EDIT_INVENTORY},
+	   { Strings.PLACE, AT_PLACE},
+	   { Strings.INVENTORY_CONTAINS, AT_INVENTORY_CONTAINS },
+	   { Strings.EDIT_LOCATION, AT_EDIT_LOCATION },
+	   { Strings.DESTROY_OBJECT, AT_DESTROY_OBJECT }
 	};
 
 	ActionType type = AT_ADD_DIRECTION;
