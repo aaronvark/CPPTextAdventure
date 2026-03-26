@@ -128,7 +128,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\..\Downloads\ini.h" />
-    <ClInclude Include="Classes.hpp" />
+    <ClInclude Include="Action.hpp" />
+    <ClInclude Include="Inventory.hpp" />
+    <ClInclude Include="Location.hpp" />
+    <ClInclude Include="Object.hpp" />
     <ClInclude Include="Strings.hpp" />
     <ClInclude Include="Utility.hpp" />
   </ItemGroup>

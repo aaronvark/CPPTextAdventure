@@ -2,13 +2,15 @@
 
 #include "ini.h"
 
+typedef std::vector<std::string>::const_iterator str_iter;
+
 /// <summary>
 /// Parses pre-structured ini file (containing headers from 1...n)
 /// </summary>
 /// <param name="url">File to parse, relative to binary</param>
 /// <param name="callback">Function to call with the inner structure</param>
 /// <param name="max">Stops looking for more data at this value</param>
-void parseIni(std::string url, void (*callback)(int, std::string, mINI::INIStructure), int max = 64)
+void parseIni(const std::string& url, void (*callback)(const int, const std::string, mINI::INIStructure), const int max = 64)
 {
 	mINI::INIFile file(url);
 	mINI::INIStructure ini;
@@ -24,7 +26,7 @@ void parseIni(std::string url, void (*callback)(int, std::string, mINI::INIStruc
 	}
 }
 
-std::vector<std::string> parseArguments(std::string input, char delimiter)
+std::vector<std::string> parseArguments(const std::string& input, const char delimiter)
 {
 	std::stringstream test(input);
 	std::string segment;
@@ -38,7 +40,7 @@ std::vector<std::string> parseArguments(std::string input, char delimiter)
 	return seglist;
 }
 
-std::vector<std::string> parseArguments(std::string input)
+std::vector<std::string> parseArguments(const std::string& input)
 {
 	return parseArguments(input, ' ');
 }

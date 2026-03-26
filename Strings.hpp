@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <algorithm>
 #include "ini.h"
 
 // English values are loaded by default
@@ -132,6 +133,8 @@ void LoadStringsFromIni(const std::string& filePath)
                 // Replace underscore-encoded newlines back to actual newlines
                 size_t pos = 0;
                 replace(target.begin(), target.end(), '_', '\n');
+                // Remove quotation marks added in to preserve leading/trailing spaces
+                target.erase(remove(target.begin(), target.end(), '"'), target.end());
             }
         };
 

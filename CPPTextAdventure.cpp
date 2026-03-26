@@ -4,10 +4,16 @@
 #include <map>
 #include <set>
 #include <functional>
+#include <algorithm>
+#include <cctype>
 
-#include "Utility.hpp"
-#include "Classes.hpp"
 #include "Strings.hpp"
+#include "Utility.hpp"
+
+#include "Object.hpp"
+#include "Location.hpp"
+#include "Action.hpp"
+#include "Inventory.hpp"
 
 using namespace std;
 
@@ -16,18 +22,19 @@ void	initialize();
 void	display();
 
 // Global gameplay functions
-bool	process(string command);
-int		go(string direction);
-string	drop(string command);
-string	pickup(string command);
-void	examine(string command);
-void	action(string secondword);
-bool	isDirectionAvailable(string direction);
-void	showdirections();
-bool	performAction(Action act);
-void	fireEvent(string evtName);
-void	useobject(string secondword);
-int		endgame();
+bool			process(const string& command);
+int				go(const string& direction);
+string			drop(const string& command);
+const string	pickup(const string& command);
+void			examine(const string& command);
+void			action(const string& secondword);
+bool			isDirectionAvailable(const string& direction);
+void			showdirections();
+bool			performAction(const Action& act);
+void			fireEvent(const string& evtName);
+void			useobject(const string& secondword);
+int				endgame();
+bool			checkEndConditions();
 
 // Persistent game data
 map<int, unique_ptr<Location>>		locMap;
@@ -39,16 +46,16 @@ set<string>							validDirections{ Strings.NORTH, Strings.EAST, Strings.SOUTH, S
 map<string, int>					directionOffset; // calculated based on mapWidth & mapHeight
 
 // Function map for more readable / extensible code down the line
-bool handleGo( vector<string> args );
-bool handleUse(vector<string> args );
-bool handlePickup(vector<string> args);
-bool handleDrop(vector<string> args);
-bool handleExamine(vector<string> args);
-bool handleInventory(vector<string> args);
-bool handleHelp(vector<string> args);
-bool handleDie(vector<string> args);
-bool handleQuit(vector<string> args);
-map < string, function<bool(vector<string>&)>> featureFuncs {
+bool handleGo(const vector<string>& args);
+bool handleUse(const vector<string>& args);
+bool handlePickup(const vector<string>& args);
+bool handleDrop(const vector<string>& args);
+bool handleExamine(const vector<string>& args);
+bool handleInventory(const vector<string>& args);
+bool handleHelp(const vector<string>& args);
+bool handleDie(const vector<string>& args);
+bool handleQuit(const vector<string>& args);
+map < string, function<bool(const vector<string>&)>> featureFuncs {
 	{ Strings.GO,			handleGo },
 	{ Strings.USE,			handleUse },
 	{ Strings.PICKUP,		handlePickup },
@@ -61,14 +68,15 @@ map < string, function<bool(vector<string>&)>> featureFuncs {
 };
 
 // Gameplay variables
-int				location;
-int				targetLocation;
-Inventory		inventory;
-string			introduction;
-string			ending;
-unsigned int	minLoc = 0;
-unsigned int	maxLoc = 16; // default, gets set when you load events.ini
-unsigned int	mapWidth, mapHeight;
+int					location;
+int					targetLocation;
+Inventory			inventory;
+string				introduction;
+string				ending;
+std::vector<string> requiredEvents;	// to trigger ending
+unsigned int		minLoc = 0;
+unsigned int		maxLoc = 16; // default, gets set when you load events.ini
+unsigned int		mapWidth, mapHeight;
 
 int main()
 {	
@@ -87,15 +95,23 @@ int main()
 		system("cls");
 		display();
 		showdirections();
-		getline(cin, input);
-		playing = process(input);
+
+		// check if any action we took triggered the ending conditions at our current location
+		if (location == targetLocation && checkEndConditions()) {
+			endgame();
+			playing = false;
+		}
+		else {
+			getline(cin, input);
+			playing = process(input);
+		}
 	}
 
 	return 0;
 }
 
-void parseMap(string url, int maxLocations = 64) {
-	auto callback = [](int locID, string locIDStr, mINI::INIStructure ini) {
+void parseMap(const string& url, const int maxLocations = 64) {
+	auto callback = [](const int locID, const string locIDStr, mINI::INIStructure ini) {
 		string dirs = ini[locIDStr][Strings.DIRECTIONS];
 		string desc = ini[locIDStr][Strings.DESCRIPTION];
 		string acts = ini[locIDStr][Strings.ACTIONS];
@@ -115,8 +131,8 @@ void parseMap(string url, int maxLocations = 64) {
 	parseIni(url, callback, maxLocations);
 }
 
-void parseObjects(string url, int maxObjects = 64) {
-	auto callback = [](int objID, string objString, mINI::INIStructure ini) {
+void parseObjects(const string& url, const int maxObjects = 64) {
+	auto callback = [](const int objID, const string objString, mINI::INIStructure ini) {
 		string name = ini[objString][Strings.NAME];
 		string examine = ini[objString][Strings.EXAMINE];
 		string action = ini[objString][Strings.ACTIONS];
@@ -129,8 +145,8 @@ void parseObjects(string url, int maxObjects = 64) {
 		replace(examine.begin(), examine.end(), '_', '\n');
 		replace(pickupDescription.begin(), pickupDescription.end(), '_', '\n');
 
-		std::vector<Action> examineActionList = action != "" ? Action::Parse(action) : Action::Parse("");
-		std::vector<Action> pickupActionList = pickupActions != "" ? Action::Parse(pickupActions) : Action::Parse("");
+		std::vector<Action> examineActionList = action != "" ? Action::FromString(action) : Action::FromString("");
+		std::vector<Action> pickupActionList = pickupActions != "" ? Action::FromString(pickupActions) : Action::FromString("");
 
 		// make_unique is used here to be able to reference the objects consistently throughout the game session
 		objMap.insert_or_assign(name, make_unique<Object>(objID, name, examine, pickup, pickupDescription, locationDescription, examineActionList, pickupActionList));
@@ -139,7 +155,7 @@ void parseObjects(string url, int maxObjects = 64) {
 	parseIni(url, callback, maxObjects);
 }
 
-void parseEvents(string url) {
+void parseEvents(const string& url) {
 	mINI::INIFile file(url);
 	mINI::INIStructure ini;
 	file.read(ini);
@@ -157,6 +173,7 @@ void parseEvents(string url) {
 
 	introduction = ini[Strings.INTRODUCTION][Strings.OUTPUT];
 	targetLocation = stoi(ini[Strings.ENDING][Strings.TARGET_LOCATION]);
+	requiredEvents = parseArguments(ini[Strings.ENDING]["requiredEvents"]);
 	ending = ini[Strings.ENDING][Strings.OUTPUT];
 
 	// These might be multi-line
@@ -167,7 +184,7 @@ void parseEvents(string url) {
 	while (ID < 64) {
 		string IDString = to_string(ID);
 		if (ini.has(IDString)) {
-			eventActions.insert_or_assign(ini[IDString][Strings.NAME], Action::Parse(ini[IDString][Strings.ACTIONS]));
+			eventActions.insert_or_assign(ini[IDString][Strings.NAME], Action::FromString(ini[IDString][Strings.ACTIONS]));
 		}
 		ID++;
 	}
@@ -176,9 +193,12 @@ void parseEvents(string url) {
 void initialize() {
 	LoadStringsFromIni("english.ini");
 
-	parseObjects("objects.ini");
-	parseMap("map.ini");
-	parseEvents("events.ini");
+	// TODO: maybe ask for a folder to open, so that a player can play different adventures?
+	//			or a main menu in which you can load a specific adventure game, load/save game, etc.
+
+	parseObjects("Lighthouse/objects.ini");
+	parseMap("Lighthouse/map.ini");
+	parseEvents("Lighthouse/events.ini");
 
 	directionOffset = std::map<string, int>
 	{
@@ -194,7 +214,7 @@ void display() {
 	cout << Strings.CURRENT_LOCATION << location << std::endl;
 }
 
-int go(string direction) {
+int go(const string& direction) {
 	bool dirAvailable = isDirectionAvailable(direction);
 	bool isValidDirection = validDirections.contains(direction);
 
@@ -216,12 +236,12 @@ int go(string direction) {
 	}
 }
 
-bool process(string command) {
+bool process(const string& command) {
 	vector<string> args = parseArguments(command);
 
 	if (args.size() == 0) return true;
 	
-	string firstword = args[0];
+	const string firstword = args[0];
 	if (featureFuncs.contains(firstword)) {
 		return featureFuncs[firstword](args);
 	}
@@ -229,15 +249,15 @@ bool process(string command) {
 	return true;
 }
 
-bool handleGo(vector<string> args)
+bool handleGo(const vector<string>& args)
 {
 	if (args.size() < 2) return false;
 
 	int oldloc = location;
 	int newloc = go(args[1]);
 
-	// check if we reach the target location
-	if (newloc == targetLocation) {
+	// check if we reach the target location (and all required events have passed)
+	if (newloc == targetLocation && checkEndConditions()) {
 		endgame();
 		newloc = -10;
 		return false;
@@ -256,7 +276,7 @@ bool handleGo(vector<string> args)
 	}
 }
 
-bool handleUse(vector<string> args)
+bool handleUse(const vector<string>& args)
 {
 	if (args.size() < 2) return true;
 	useobject(args[1]);
@@ -264,7 +284,7 @@ bool handleUse(vector<string> args)
 	return true;
 }
 
-bool handleDrop(vector<string> args)
+bool handleDrop(const vector<string>& args)
 {
 	if (args.size() < 2) return true;
 	string reaction = drop(args[1]);
@@ -273,7 +293,7 @@ bool handleDrop(vector<string> args)
 	return true;
 }
 
-bool handlePickup(vector<string> args)
+bool handlePickup(const vector<string>& args)
 {
 	if (args.size() < 2) return true;
 	string reaction = pickup(args[1]);
@@ -282,7 +302,7 @@ bool handlePickup(vector<string> args)
 	return true;
 }
 
-bool handleExamine(vector<string> args)
+bool handleExamine(const vector<string>& args)
 {
 	if (args.size() < 2) return true;
 	examine(args[1]);
@@ -290,35 +310,35 @@ bool handleExamine(vector<string> args)
 	return true;
 }
 
-bool handleInventory(vector<string> args)
+bool handleInventory(const vector<string>& args)
 {
 	inventory.Display();
 	cin.get();
 	return true;
 }
 
-bool handleHelp(vector<string> args)
+bool handleHelp(const vector<string>& args)
 {
 	cout << Strings.HELP_TEXT;
 	cin.get();
 	return true;
 }
 
-bool handleDie(vector<string> args)
+bool handleDie(const vector<string>& args)
 {
 	cout << Strings.DIE_RESPONSE;
 	cin.get();
 	return false;
 }
 
-bool handleQuit(vector<string> args)
+bool handleQuit(const vector<string>& args)
 {
 	cout << Strings.ANY_KEY_QUIT;
 	cin.get();
 	return false;
 }
 
-string pickup(string objectString) {
+const string pickup(const string& objectString) {
 	int achieved = 0;
 	bool success = false;
 	string reaction;
@@ -359,7 +379,7 @@ string pickup(string objectString) {
 	return reaction;
 }
 
-string drop(string objectString) {
+string drop(const string& objectString) {
 	int success = inventory.Remove(objMap[objectString].get());
 	string reaction;
 	if (success == 1) {
@@ -373,7 +393,7 @@ string drop(string objectString) {
 	}
 }
 
-void examine(string objectString) {
+void examine(const string& objectString) {
 	bool objectPresent = locMap[location]->Contains(objectString);
 	if (!objectPresent) {
 		cout << Strings.EXAMINE_FAIL;
@@ -384,14 +404,14 @@ void examine(string objectString) {
 	}
 }
 
-void action(string secondword) {
+void action(const string& secondword) {
 	for (auto action : objMap[secondword]->actions)
 	{
 		if ( !performAction(action) ) break;
 	}
 }
 
-bool performAction( Action act )
+bool performAction( const Action& act )
 {
 	switch (act.type)
 	{
@@ -405,7 +425,7 @@ bool performAction( Action act )
 		fireEvent(act.data[0]);
 		return true;
 	case AT_EDIT_OBJECT:
-		objMap[act.data[0]]->Update(act.data[1], act.data[2]);
+		objMap[act.data[0]]->Update(act.data[1], act.data.begin() + 2, act.data.end());
 		return true;
 	case AT_EDIT_INVENTORY:
 		if (objMap.contains(act.data[1])) {
@@ -427,13 +447,15 @@ bool performAction( Action act )
 	case AT_INVENTORY_CONTAINS:
 		return inventory.Contains(act.data[0]);	// this is the only action that can fail currently
 	case AT_EDIT_LOCATION:
-		// if there is an additional datapoint, then we're editing another location
-		if (act.data.size() > 2) {
+		// check which location (second data element is number = other location)
+		if (std::all_of(act.data[0].begin(), act.data[0].end(), ::isdigit)) {
 			int locID = stoi(act.data[0]);
-			locMap[locID]->Update(act.data[1], act.data[2]);
+			// use iterators because when updating actions it could be quite long
+			locMap[locID]->Update(act.data[1], act.data.begin()+2, act.data.end());
 		}
-		else 
-			locMap[location]->Update(act.data[0], act.data[1]);
+		else {
+			locMap[location]->Update(act.data[0], act.data.begin() + 1, act.data.end());
+		}
 		return true;
 	case AT_DESTROY_OBJECT:
 		// Remove from inventory & current location
@@ -450,7 +472,7 @@ bool performAction( Action act )
 	return false;
 }
 
-void useobject(string secondword) {
+void useobject(const string& secondword) {
 	bool isPresent = locMap[location]->Contains(secondword);
 	bool hasItem = inventory.Contains(secondword);
 
@@ -486,7 +508,7 @@ void useobject(string secondword) {
 	}
 }
 
-bool isDirectionAvailable(string direction) {
+bool isDirectionAvailable(const string& direction) {
 	return locMap[location]->directions.contains(direction);
 }
 
@@ -503,7 +525,7 @@ void showdirections() {
 	cout << std::endl;
 }
 
-void fireEvent(string evtName) {
+void fireEvent(const string& evtName) {
 	events.insert(evtName);
 	if (eventActions.contains(evtName)) {
 		for (auto act : eventActions[evtName]) {
@@ -519,4 +541,15 @@ int endgame() {
 	cin.get();
 	location = -10;
 	return location;
+}
+
+bool checkEndConditions() {
+	bool done = true;
+	for (auto evt : requiredEvents) {
+		if (!events.contains(evt)) {
+			done = false;
+			break;
+		}
+	}
+	return done;
 }
